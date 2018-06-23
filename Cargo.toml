@@ -1,0 +1,7 @@
+[package]
+name = "nqueens"
+version = "0.1.0"
+authors = ["christopher-henderson <chris@chenderson.org>"]
+
+[dependencies]
+time = "*"
