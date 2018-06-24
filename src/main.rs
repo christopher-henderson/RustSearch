@@ -4,7 +4,7 @@ extern crate time;
 use std::io;
 
 fn main() {
-	let n: u32;
+	let n: i32;
 	loop {
 		let mut n_string = String::new();
 		println!("Enter target N value:");
@@ -16,7 +16,7 @@ fn main() {
 		}
 	}
 	let start = time::PreciseTime::now();
-	let found = nqueens::backtrack(nqueens::Queen::new(0, 0), n);
+	let found = nqueens::backtrack(nqueens::Queen::new(0, 0, n));
     let end = time::PreciseTime::now();
     println!("found {} solutions in {} seconds", found, start.to(end));
 }
