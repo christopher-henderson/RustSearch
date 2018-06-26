@@ -1,6 +1,4 @@
-use std::vec;
-
-trait Backtracker<T> {
+pub trait Backtracker<T> {
 
 	fn backtrack(fcg: T) -> u32 where T: Backtracker<T> {
 		let mut found = 0;
@@ -44,11 +42,39 @@ pub struct Queen {
     current: i32
 }
 
-// impl Queen {
-// 	pub fn new(column: i32, row: i32, n: i32) -> Queen {
-// 		Queen{column, row, n, current: 0}
-// 	}
-// }
+impl Queen {
+	pub fn new(column: i32, row: i32, n: i32) -> Queen {
+		Queen{column, row, n, current: 0}
+	}
+}
+
+impl Backtracker<Queen> for Queen {
+
+	fn reject(solution: &[Queen], candidate: &Queen) -> bool {
+		let column = candidate.column;
+		let row = candidate.row;
+		for queen in solution.iter() {
+			let r = queen.row;
+			let c = queen.column	;
+			if (row == r) || (column == c) || (row + column == r + c) || (row - column == r - c) {
+				return true;
+			}
+		}
+		false
+	}
+
+	fn accept(solution: &[Queen]) -> bool {
+		solution.len() > 0 && solution.len() == unsafe{solution.get_unchecked(0)}.n as usize
+	}
+
+	fn next(&mut self) -> Option<Queen> {
+		self.current += 1;
+		if self.current > self.n {
+			return None;
+		}
+		Some(Queen::new(self.column + 1, self.current, self.n))
+	}
+}
 
 // impl Iterator for Queen {
 // 	type Item = Queen;
@@ -75,20 +101,20 @@ pub struct Queen {
 // }
 
 // fn reject(solution: &[Queen], candidate: &Queen) -> bool {
-// 	let column = candidate.column;
-// 	let row = candidate.row;
-// 	for queen in solution.iter() {
-// 		let r = queen.row;
-// 		let c = queen.column	;
-// 		if (row == r) || (column == c) || (row + column == r + c) || (row - column == r - c) {
-// 			return true;
-// 		}
-// 	}
-// 	false
+	// let column = candidate.column;
+	// let row = candidate.row;
+	// for queen in solution.iter() {
+	// 	let r = queen.row;
+	// 	let c = queen.column	;
+	// 	if (row == r) || (column == c) || (row + column == r + c) || (row - column == r - c) {
+	// 		return true;
+	// 	}
+	// }
+	// false
 // }
 
 // fn accept(solution: &[Queen]) -> bool {
-// 	solution.len() > 0 && solution.len() == unsafe{solution.get_unchecked(0)}.n as usize
+	// solution.len() > 0 && solution.len() == unsafe{solution.get_unchecked(0)}.n as usize
 // }
 
 // pub fn backtrack(fcg: Queen) -> u32 {

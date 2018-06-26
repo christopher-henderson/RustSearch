@@ -1,6 +1,7 @@
 extern crate nqueens;
 extern crate time;
 
+use nqueens::Backtracker;
 use std::io;
 
 fn main() {
@@ -16,7 +17,7 @@ fn main() {
 		}
 	}
 	let start = time::PreciseTime::now();
-	let found = nqueens::backtrack(nqueens::Queen::new(0, 0, n));
+	let found = nqueens::Queen::backtrack(nqueens::Queen::new(0, 0, n));
     let end = time::PreciseTime::now();
     println!("found {} solutions in {} seconds", found, start.to(end));
 }
