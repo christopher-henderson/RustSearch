@@ -12,14 +12,6 @@ impl Queen {
 	pub fn new(column: i32, row: i32, n: i32) -> Queen {
 		Queen{column, row, n, current: 0}
 	}
-
-	fn children(&mut self, n: u32) -> Option<Queen> {
-		self.current += 1;
-		if self.current > (n as i32) {
-			return None;
-		}
-		Some(Queen::new(self.column + 1, self.current, self.n))
-	}
 }
 
 impl Iterator for Queen {
@@ -46,7 +38,7 @@ impl Clone for Queen {
 	}
 }
 
-fn reject(solution: &vec::Vec<Queen>, candidate: &Queen) -> bool {
+fn reject(solution: &[Queen], candidate: &Queen) -> bool {
 	let column = candidate.column;
 	let row = candidate.row;
 	for queen in solution.iter() {
@@ -59,34 +51,33 @@ fn reject(solution: &vec::Vec<Queen>, candidate: &Queen) -> bool {
 	false
 }
 
-fn accept(solution: &vec::Vec<Queen>) -> bool {
+fn accept(solution: &[Queen]) -> bool {
 	solution.len() > 0 && solution.len() == solution.get(0).unwrap().n as usize
 }
 
-pub fn backtrack(mut root: Queen) -> u32 {
-	let mut solution: vec::Vec<Queen> = vec::Vec::new();
-	let mut stack: vec::Vec<Queen> = vec::Vec::new();
+pub fn backtrack(fcg: Queen) -> u32 {
 	let mut found = 0;
+	let mut root_pointer: usize = 0;
+	let mut core: vec::Vec<Queen> = vec![fcg];
 	loop {
-		if let Some(candidate) = root.next() {
-			if reject(&solution, &candidate) {
-				continue;
-			}
-			solution.push(candidate.clone());
-			if accept(&solution) {
-				found += 1;
-				solution.pop();
-				continue;
-			}
-			stack.push(root.clone());
-			root = candidate;
-		} else {
-			if stack.len() == 0 {
+	    if let Some(candidate) = core[root_pointer].next() {
+	    	if reject(&core[1..], &candidate) {
+	    		continue;
+	    	}
+	    	core.push(candidate);
+	    	if accept(&core[1..]) {
+	    		found += 1;
+	    		core.pop();
+	    		continue;;
+	    	}
+	    	root_pointer += 1;
+	    } else {
+			core.pop();
+			if core.len() == 0 {
 				break;
 			}
-			solution.pop();
-			root = stack.pop().expect("bounds underflow");
-		}
+			root_pointer -= 1;
+	    }
 	}
 	found
 }
