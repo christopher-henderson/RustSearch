@@ -82,57 +82,61 @@ pub fn backtrack(fcg: Queen) -> u32 {
 	found
 }
 
-// #[cfg(test)]
-// mod tests {
-// 	use super::*;
+#[cfg(test)]
+mod tests {
+	use super::*;
 
-// 	#[test]
-// 	fn must_reject() {
-// 		assert!(reject(&vec![Queen::new(1, 1)], &Queen::new(2, 2)));
-// 		assert!(reject(&vec![Queen::new(1, 1), Queen::new(2, 4)], &Queen::new(3, 4)));
-// 		assert!(reject(&vec![Queen::new(1, 1), Queen::new(2, 4), Queen::new(3, 4)], &Queen::new(4, 3)));
-// 	}
+	#[test]
+	fn must_reject() {
+		let n = 4;
+		assert!(reject(&vec![Queen::new(1, 1, n)][..], &Queen::new(2, 2, n)));
+		assert!(reject(&vec![Queen::new(1, 1, n), Queen::new(2, 4, n)][..], &Queen::new(3, 4, n)));
+		assert!(reject(&vec![Queen::new(1, 1, n), Queen::new(2, 4, n), Queen::new(3, 4, n)][..], &Queen::new(4, 3, n)));
+	}
 
-// // 1-
-// //  0  0  1  0 
-// //  1  0  0  0 
-// //  0  0  0  1 
-// //  0  1  0  0 
-// // 2-
-// //  0  1  0  0 
-// //  0  0  0  1 
-// //  1  0  0  0 
-// //  0  0  1  0 
-// 	#[test]
-// 	fn must_not_reject() {
-// 		assert!(!reject(&vec![Queen::new(1, 2)], &Queen::new(2, 4)));
-// 		assert!(!reject(&vec![Queen::new(1, 2), Queen::new(2, 4)], &Queen::new(3, 1)));
-// 		assert!(!reject(&vec![Queen::new(1, 2), Queen::new(2, 4), Queen::new(3, 1)], &Queen::new(4, 3)));
+// 1-
+//  0  0  1  0 
+//  1  0  0  0 
+//  0  0  0  1 
+//  0  1  0  0 
+// 2-
+//  0  1  0  0 
+//  0  0  0  1 
+//  1  0  0  0 
+//  0  0  1  0 
+	#[test]
+	fn must_not_reject() {
+		let n = 4;
+		assert!(!reject(&vec![Queen::new(1, 2, n)][..], &Queen::new(2, 4, n)));
+		assert!(!reject(&vec![Queen::new(1, 2, n), Queen::new(2, 4, n)][..], &Queen::new(3, 1, n)));
+		assert!(!reject(&vec![Queen::new(1, 2, n), Queen::new(2, 4, n), Queen::new(3, 1, n)][..], &Queen::new(4, 3, n)));
 
-// 		assert!(!reject(&vec![Queen::new(1, 3)], &Queen::new(2, 1)));
-// 		assert!(!reject(&vec![Queen::new(1, 3), Queen::new(2, 1)], &Queen::new(3, 4)));
-// 		assert!(!reject(&vec![Queen::new(1, 3), Queen::new(2, 1), Queen::new(3, 4)], &Queen::new(4, 2)));
-// 	}
+		assert!(!reject(&vec![Queen::new(1, 3, n)][..], &Queen::new(2, 1, n)));
+		assert!(!reject(&vec![Queen::new(1, 3, n), Queen::new(2, 1, n)][..], &Queen::new(3, 4, n)));
+		assert!(!reject(&vec![Queen::new(1, 3, n), Queen::new(2, 1, n), Queen::new(3, 4, n)][..], &Queen::new(4, 2, n)));
+	}
 
-// 	#[test]
-// 	fn must_accept() {
-// 	    assert!(accept(&vec![Queen::new(1, 3), Queen::new(2, 1), Queen::new(3, 4), Queen::new(4, 2)], 4));
-// 	}
+	#[test]
+	fn must_accept() {
+		let n = 4;
+	    assert!(accept(&vec![Queen::new(1, 3, n), Queen::new(2, 1, n), Queen::new(3, 4, n), Queen::new(4, 2, n)][..]));
+	}
 
-// 	#[test]
-// 	fn must_not_accept() {
-// 		assert!(!accept(&vec![Queen::new(1, 3), Queen::new(2, 1), Queen::new(3, 4)], 4));
-// 	}
+	#[test]
+	fn must_not_accept() {
+		let n = 4;
+		assert!(!accept(&vec![Queen::new(1, 3, n), Queen::new(2, 1, n), Queen::new(3, 4, n)][..]));
+	}
 
-// 	#[test]
-// 	fn correct_children() {
-// 	    let mut fcg = Queen::new(0, 0);
-// 	    let n = 4;
-// 	    let expected = vec![Queen::new(1, 1), Queen::new(1, 2), Queen::new(1, 3), Queen::new(1, 4)];
-// 	    let mut got: vec::Vec<Queen> = vec::Vec::new();
-// 	    while let Some(queen) = fcg.children(n) {
-// 	    	got.push(queen);
-// 	    }
-// 	    assert_eq!(expected, got);
-// 	}
-// }
+	#[test]
+	fn correct_children() {
+		let n = 4;
+	    let mut fcg = Queen::new(0, 0, n);
+	    let expected = vec![Queen::new(1, 1, n), Queen::new(1, 2, n), Queen::new(1, 3, n), Queen::new(1, 4, n)];
+	    let mut got: vec::Vec<Queen> = vec::Vec::new();
+	    while let Some(queen) = fcg.next() {
+	    	got.push(queen);
+	    }
+	    assert_eq!(expected, got);
+	}
+}
