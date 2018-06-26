@@ -52,7 +52,7 @@ fn reject(solution: &[Queen], candidate: &Queen) -> bool {
 }
 
 fn accept(solution: &[Queen]) -> bool {
-	solution.len() > 0 && solution.len() == solution.get(0).unwrap().n as usize
+	solution.len() > 0 && solution.len() == unsafe{solution.get_unchecked(0)}.n as usize
 }
 
 pub fn backtrack(fcg: Queen) -> u32 {
@@ -60,7 +60,7 @@ pub fn backtrack(fcg: Queen) -> u32 {
 	let mut root_pointer: usize = 0;
 	let mut core: vec::Vec<Queen> = vec![fcg];
 	loop {
-	    if let Some(candidate) = core[root_pointer].next() {
+	    if let Some(candidate) = unsafe{core.get_unchecked_mut(root_pointer)}.next() {
 	    	if reject(&core[1..], &candidate) {
 	    		continue;
 	    	}
@@ -68,7 +68,7 @@ pub fn backtrack(fcg: Queen) -> u32 {
 	    	if accept(&core[1..]) {
 	    		found += 1;
 	    		core.pop();
-	    		continue;;
+	    		continue;
 	    	}
 	    	root_pointer += 1;
 	    } else {
