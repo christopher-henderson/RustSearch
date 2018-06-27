@@ -1,5 +1,4 @@
-pub fn backtrack<T>(fcg: T, reject: fn(&[T], &T) -> bool, accept: fn(&[T]) -> bool) -> u32 where T: Iterator<Item = T> {
-	let mut found = 0;
+pub fn search<T>(fcg: T, reject: &mut FnMut(&[T], &T) -> bool, accept: &mut FnMut(&[T]) -> bool) where T: Iterator<Item = T> {
 	let mut root_pointer: usize = 0;
 	let mut core = vec![fcg];
 	loop {
@@ -10,7 +9,6 @@ pub fn backtrack<T>(fcg: T, reject: fn(&[T], &T) -> bool, accept: fn(&[T]) -> bo
 	    	}
 	    	core.push(candidate);
 	    	if accept(&core[1..]) {
-	    		found += 1;
 	    		core.pop();
 	    		continue;
 	    	}
@@ -23,34 +21,9 @@ pub fn backtrack<T>(fcg: T, reject: fn(&[T], &T) -> bool, accept: fn(&[T]) -> bo
 			root_pointer -= 1;
 	    }
 	}
-	found
 }
 
-#[derive(Debug)]
-pub struct Queen {
-    pub column: i32,
-    pub row: i32,
-    pub n: i32,
-    current: i32
-}
 
-impl Queen {
-	pub fn new(column: i32, row: i32, n: i32) -> Queen {
-		Queen{column, row, n, current: 0}
-	}
-}
-
-impl Iterator for Queen {
-	type Item = Queen;
-
-	fn next(&mut self) -> Option<Queen> {
-		self.current += 1;
-		if self.current > self.n {
-			return None;
-		}
-		Some(Queen::new(self.column + 1, self.current, self.n))
-	}
-}
 
 // impl PartialEq for Queen {
 // 	fn eq(&self, other: &Queen) -> bool {
