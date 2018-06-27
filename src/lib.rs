@@ -5,8 +5,7 @@ where
 	let mut root_pointer: usize = 0;
 	let mut core = vec![fcg];
 	loop {
-	    if let Some(c) = unsafe{core.get_unchecked_mut(root_pointer)}.next() {
-	    	let mut candidate = c as T;
+	    if let Some(candidate) = unsafe{core.get_unchecked_mut(root_pointer)}.next() {
 	    	if reject(&core[1..], &candidate) {
 	    		continue;
 	    	}
