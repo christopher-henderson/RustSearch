@@ -44,8 +44,7 @@ fn n_from_input() -> i32 {
 
 fn main() {
 	let n = n_from_input();
-	let mut answers: std::vec::Vec<std::vec::Vec<Queen>> = vec![];
-	let mut found = 0;
+	let mut answers = vec![vec![]];
 	let fcg = Queen::new(0, 0, n);
 	let start = time::PreciseTime::now();
 	////////////////////
@@ -66,8 +65,8 @@ fn main() {
 		// Accept
 		&mut |solution: &[Queen]| {
 			if solution.len() > 0 && solution.len() == unsafe{solution.get_unchecked(0)}.n as usize {
+				// Aggregate answers in captured vector.
 				answers.push(solution.iter().map(|q| q.clone()).collect());
-				found += 1;
 				return true;
 			}
 			false
@@ -75,5 +74,5 @@ fn main() {
 	);
 	////////////////////
     let end = time::PreciseTime::now();
-    println!("found {} solutions in {} seconds", found, start.to(end));
+    println!("found {} solutions in {} seconds", answers.len(), start.to(end));
 }
