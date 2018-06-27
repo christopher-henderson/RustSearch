@@ -1,4 +1,7 @@
-pub fn search<T>(fcg: T, reject: &mut FnMut(&[T], &T) -> bool, accept: &mut FnMut(&[T]) -> bool) where T: Iterator<Item = T> {
+pub fn search<T>(fcg: T, reject: &mut FnMut(&[T], &T) -> bool, accept: &mut FnMut(&[T]) -> bool)
+where
+	T: Iterator<Item = T>
+{
 	let mut root_pointer: usize = 0;
 	let mut core = vec![fcg];
 	loop {
@@ -15,7 +18,7 @@ pub fn search<T>(fcg: T, reject: &mut FnMut(&[T], &T) -> bool, accept: &mut FnMu
 	    	root_pointer += 1;
 	    } else {
 			core.pop();
-			if core.len() == 0 {
+			if root_pointer == 0 {
 				break;
 			}
 			root_pointer -= 1;
