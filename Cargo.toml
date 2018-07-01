@@ -6,3 +6,4 @@ authors = ["christopher-henderson <chris@chenderson.org>"]
 [dependencies]
 time = "*"
 num_cpus = "*"
+csp = { path = "../csp" }

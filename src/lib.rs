@@ -1,15 +1,16 @@
+use std::sync::Mutex;
+use csp::ArcBufferedChannel;
 use std::vec::Vec;
-use std::sync::{RwLock, Mutex};
+use std::sync::{RwLock};
 use std::sync::Arc;
-use std::sync::mpsc::{channel, Sender, Receiver};
 use std::thread;
 
 extern crate num_cpus;
+extern crate csp;
 
 pub type Item<T> = Arc<RwLock<T>>;
 pub type Core<T> = Vec<Item<T>>;
 pub type CoreSlice<T> = [Item<T>];
-
 
 pub fn search<T: 'static, R, A>(fcg: T, reject: R, accept: A)
 where
@@ -21,53 +22,77 @@ where
 	let workers = num_cpus::get();
 	let _available = workers;
 	let mut handles = vec![];
-	let (tx, rx): (Sender<Core<T>>, Receiver<Core<T>>) = channel();
-	let rx = Arc::new(Mutex::new(rx));
+	let work_channel = csp::BufferedChannel::new(workers);
+	let wg = csp::BufferedChannel::new(workers);
 	let reject = Arc::new(reject);
 	let accept = Arc::new(accept);
+	let lock = Arc::new(Mutex::new(0));
 	for _ in 0..workers {
-		let rx = rx.clone();
+		let work_channel = work_channel.clone();
 		let reject = reject.clone();
 		let accept = accept.clone();
+		let wg = wg.clone();
+		let lock = lock.clone();
 		handles.push(thread::spawn(move || {
-			engine(rx, reject, accept);
+			engine(work_channel, wg, lock, reject, accept);
 		}));
-		break;
 	}
-	tx.send(core).unwrap();
+	work_channel.send(core);
+	wg.send(1);
 	for handle in handles {
 		handle.join().unwrap();
 	}
 }
 
-fn engine<T, R, A>(work_channel: Arc<Mutex<Receiver<Core<T>>>>, reject: Arc<R>, accept: Arc<A>) 
+fn engine<T, R, A>(work_channel: ArcBufferedChannel<Core<T>>, wg: ArcBufferedChannel<i32>, lock: Arc<Mutex<i32>>, reject: Arc<R>, accept: Arc<A>) 
 where
 	T: Iterator<Item = T> + Send + Sync,
 	R: Fn(&CoreSlice<T>, &T) -> bool + Send + Sync + 'static,
 	A: Fn(&CoreSlice<T>) -> bool + Send + Sync + 'static
 {
-	let mut core = work_channel.lock().unwrap().recv().unwrap();
-	let mut root_pointer: usize = core.len() - 1;
 	loop {
-		let cand = unsafe{core.get_unchecked_mut(root_pointer)}.write().unwrap().next();
-		match cand {
-			Some(candidate) => {
-				if reject(&core[1..], &candidate) {
-		    		continue;
-		    	}
-		    	core.push(Arc::new(RwLock::new(candidate)));
-		    	if accept(&core[1..]) {
-		    		core.pop();
-		    		continue;
-		    	}
-		    	root_pointer += 1;
-			},
-			None => {
-				core.pop();
-				if root_pointer == 0 {
-					break;
+		let mut core = work_channel.recv();
+		let mut root_pointer: usize = core.len() - 1;
+		loop {
+			let cand = core[root_pointer].write().unwrap().next();
+			match cand {
+				Some(candidate) => {
+					if reject(&core[1..], &candidate) {
+			    		continue;
+			    	}
+			    	core.push(Arc::new(RwLock::new(candidate)));
+			    	if accept(&core[1..]) {
+			    		core.pop();
+			    		continue;
+			    	}
+			    	{
+			    		match wg.try_send(1) {
+				    		Ok(_) => {
+				    			work_channel.send(core.clone());
+				    			core.pop();
+				    			continue;
+				    		}
+				    		Err(_) => ()
+			    		}	
+			    	}
+			    	root_pointer += 1;
+				},
+				None => {
+					core.pop();
+					if root_pointer == 0 {
+						break;
+					}
+					root_pointer -= 1;
 				}
-				root_pointer -= 1;
+			}
+		}
+		{
+		    match wg.try_send(1) {
+				Ok(_) => {
+					wg.recv();
+					continue;
+				}
+				Err(_) => return
 			}
 		}
 	}
