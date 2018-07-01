@@ -3,7 +3,6 @@ use std::sync::{RwLock, Mutex};
 use std::sync::Arc;
 use std::sync::mpsc::{channel, Sender, Receiver};
 use std::thread;
-use std::mem;
 
 extern crate num_cpus;
 
@@ -31,37 +30,46 @@ where
 		let reject = reject.clone();
 		let accept = accept.clone();
 		handles.push(thread::spawn(move || {
-			let mut core = rx.lock().unwrap().recv().unwrap();
-			let mut root_pointer: usize = core.len() - 1;
-			loop {
-				let cand = unsafe{core.get_unchecked_mut(root_pointer)}.write().unwrap().next();
-				match cand {
-					Some(candidate) => {
-						if reject(&core[1..], &candidate) {
-				    		continue;
-				    	}
-				    	core.push(Arc::new(RwLock::new(candidate)));
-				    	if accept(&core[1..]) {
-				    		core.pop();
-				    		continue;
-				    	}
-				    	root_pointer += 1;
-					},
-					None => {
-						core.pop();
-						if root_pointer == 0 {
-							break;
-						}
-						root_pointer -= 1;
-					}
-				}
-			}
+			engine(rx, reject, accept);
 		}));
 		break;
 	}
 	tx.send(core).unwrap();
 	for handle in handles {
 		handle.join().unwrap();
+	}
+}
+
+fn engine<T, R, A>(work_channel: Arc<Mutex<Receiver<Core<T>>>>, reject: Arc<R>, accept: Arc<A>) 
+where
+	T: Iterator<Item = T> + Send + Sync,
+	R: Fn(&CoreSlice<T>, &T) -> bool + Send + Sync + 'static,
+	A: Fn(&CoreSlice<T>) -> bool + Send + Sync + 'static
+{
+	let mut core = work_channel.lock().unwrap().recv().unwrap();
+	let mut root_pointer: usize = core.len() - 1;
+	loop {
+		let cand = unsafe{core.get_unchecked_mut(root_pointer)}.write().unwrap().next();
+		match cand {
+			Some(candidate) => {
+				if reject(&core[1..], &candidate) {
+		    		continue;
+		    	}
+		    	core.push(Arc::new(RwLock::new(candidate)));
+		    	if accept(&core[1..]) {
+		    		core.pop();
+		    		continue;
+		    	}
+		    	root_pointer += 1;
+			},
+			None => {
+				core.pop();
+				if root_pointer == 0 {
+					break;
+				}
+				root_pointer -= 1;
+			}
+		}
 	}
 }
 
