@@ -44,7 +44,7 @@ fn n_from_input() -> i32 {
 
 fn main() {
 	let n = n_from_input();
-	let mut answers = vec![vec![]];
+	let mut answers: Vec<Vec<Queen>> = vec![];
 	let fcg = Queen::new(0, 0, n);
 	let start = time::PreciseTime::now();
 	////////////////////
