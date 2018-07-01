@@ -20,13 +20,12 @@ where
 {
 	let core: Core<T> = vec![Arc::new(RwLock::new(fcg))];
 	let workers = num_cpus::get();
-	let _available = workers;
 	let mut handles = vec![];
 	let work_channel = csp::BufferedChannel::new(workers);
 	let wg = csp::BufferedChannel::new(workers);
+	let lock = csp::BufferedChannel::new(workers);
 	let reject = Arc::new(reject);
 	let accept = Arc::new(accept);
-	let lock = Arc::new(Mutex::new(0));
 	for _ in 0..workers {
 		let work_channel = work_channel.clone();
 		let reject = reject.clone();
@@ -37,21 +36,37 @@ where
 			engine(work_channel, wg, lock, reject, accept);
 		}));
 	}
-	work_channel.send(core);
+	lock.send(1);
 	wg.send(1);
+	work_channel.send(Some(core));
+	let mut count = 0;
+	loop {
+		count += wg.recv();
+		if count == 0 {
+			for _ in 0..workers {
+				work_channel.send(None);
+			}
+			break;
+		}
+	}
 	for handle in handles {
 		handle.join().unwrap();
 	}
 }
 
-fn engine<T, R, A>(work_channel: ArcBufferedChannel<Core<T>>, wg: ArcBufferedChannel<i32>, lock: Arc<Mutex<i32>>, reject: Arc<R>, accept: Arc<A>) 
+fn engine<T, R, A>(work_channel: ArcBufferedChannel<Option<Core<T>>>, wg: ArcBufferedChannel<i32>, lock : ArcBufferedChannel<i32>, reject: Arc<R>, accept: Arc<A>) 
 where
 	T: Iterator<Item = T> + Send + Sync,
 	R: Fn(&CoreSlice<T>, &T) -> bool + Send + Sync + 'static,
 	A: Fn(&CoreSlice<T>) -> bool + Send + Sync + 'static
 {
 	loop {
-		let mut core = work_channel.recv();
+		let mut core;
+		if let Some(work) = work_channel.recv() {
+			core = work;
+		} else {
+			return;
+		}
 		let mut root_pointer: usize = core.len() - 1;
 		loop {
 			let cand = core[root_pointer].write().unwrap().next();
@@ -65,15 +80,11 @@ where
 			    		core.pop();
 			    		continue;
 			    	}
-			    	{
-			    		match wg.try_send(1) {
-				    		Ok(_) => {
-				    			work_channel.send(core.clone());
-				    			core.pop();
-				    			continue;
-				    		}
-				    		Err(_) => ()
-			    		}	
+			    	if let Ok(_) = lock.try_send(1) {
+			    		wg.send(1);
+			    		work_channel.send(Some(core.clone()));
+			    		core.pop();
+			    		continue;
 			    	}
 			    	root_pointer += 1;
 				},
@@ -86,15 +97,8 @@ where
 				}
 			}
 		}
-		{
-		    match wg.try_send(1) {
-				Ok(_) => {
-					wg.recv();
-					continue;
-				}
-				Err(_) => return
-			}
-		}
+		lock.recv();
+		wg.send(-1);
 	}
 }
 
