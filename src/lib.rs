@@ -1,87 +1,69 @@
-pub fn search<T>(fcg: T, reject: &mut FnMut(&[T], &T) -> bool, accept: &mut FnMut(&[T]) -> bool)
+use std::vec::Vec;
+use std::sync::{RwLock, Mutex};
+use std::sync::Arc;
+use std::sync::mpsc::{channel, Sender, Receiver};
+use std::thread;
+use std::mem;
+
+extern crate num_cpus;
+
+pub type Item<T> = Arc<RwLock<T>>;
+pub type Core<T> = Vec<Item<T>>;
+pub type CoreSlice<T> = [Item<T>];
+
+
+pub fn search<T: 'static, R, A>(fcg: T, reject: R, accept: A)
 where
-	T: Iterator<Item = T>
+	T: Iterator<Item = T> + Send + Sync,
+	R: Fn(&CoreSlice<T>, &T) -> bool + Send + Sync + 'static,
+	A: Fn(&CoreSlice<T>) -> bool + Send + Sync + 'static
 {
-	let mut root_pointer: usize = 0;
-	let mut core = vec![fcg];
-	loop {
-	    if let Some(candidate) = unsafe{core.get_unchecked_mut(root_pointer)}.next() {
-	    	if reject(&core[1..], &candidate) {
-	    		continue;
-	    	}
-	    	core.push(candidate);
-	    	if accept(&core[1..]) {
-	    		core.pop();
-	    		continue;
-	    	}
-	    	root_pointer += 1;
-	    } else {
-			core.pop();
-			if root_pointer == 0 {
-				break;
+	let core: Core<T> = vec![Arc::new(RwLock::new(fcg))];
+	let workers = num_cpus::get();
+	let _available = workers;
+	let mut handles = vec![];
+	let (tx, rx): (Sender<Core<T>>, Receiver<Core<T>>) = channel();
+	let rx = Arc::new(Mutex::new(rx));
+	let reject = Arc::new(reject);
+	let accept = Arc::new(accept);
+	for _ in 0..workers {
+		let rx = rx.clone();
+		let reject = reject.clone();
+		let accept = accept.clone();
+		handles.push(thread::spawn(move || {
+			let mut core = rx.lock().unwrap().recv().unwrap();
+			let mut root_pointer: usize = core.len() - 1;
+			loop {
+				let cand = unsafe{core.get_unchecked_mut(root_pointer)}.write().unwrap().next();
+				match cand {
+					Some(candidate) => {
+						if reject(&core[1..], &candidate) {
+				    		continue;
+				    	}
+				    	core.push(Arc::new(RwLock::new(candidate)));
+				    	if accept(&core[1..]) {
+				    		core.pop();
+				    		continue;
+				    	}
+				    	root_pointer += 1;
+					},
+					None => {
+						core.pop();
+						if root_pointer == 0 {
+							break;
+						}
+						root_pointer -= 1;
+					}
+				}
 			}
-			root_pointer -= 1;
-	    }
+		}));
+		break;
+	}
+	tx.send(core).unwrap();
+	for handle in handles {
+		handle.join().unwrap();
 	}
 }
-
-
-
-// impl PartialEq for Queen {
-// 	fn eq(&self, other: &Queen) -> bool {
-// 		return self.column == other.column && self.row == other.row;
-// 	}
-// }
-
-// impl Clone for Queen {
-// 	fn clone(&self) -> Queen {
-// 		Queen{column: self.column, row: self.row, n: self.n, current: self.current}
-// 	}
-// }
-
-// fn reject(solution: &[Queen], candidate: &Queen) -> bool {
-	// let column = candidate.column;
-	// let row = candidate.row;
-	// for queen in solution.iter() {
-	// 	let r = queen.row;
-	// 	let c = queen.column	;
-	// 	if (row == r) || (column == c) || (row + column == r + c) || (row - column == r - c) {
-	// 		return true;
-	// 	}
-	// }
-	// false
-// }
-
-// fn accept(solution: &[Queen]) -> bool {
-// 	solution.len() > 0 && solution.len() == unsafe{solution.get_unchecked(0)}.n as usize
-// }
-
-// pub fn backtrack(fcg: Queen) -> u32 {
-// 	let mut found = 0;
-// 	let mut root_pointer: usize = 0;
-// 	let mut core: vec::Vec<Queen> = vec![fcg];
-// 	loop {
-// 	    if let Some(candidate) = unsafe{core.get_unchecked_mut(root_pointer)}.next() {
-// 	    	if reject(&core[1..], &candidate) {
-// 	    		continue;
-// 	    	}
-// 	    	core.push(candidate);
-// 	    	if accept(&core[1..]) {
-// 	    		found += 1;
-// 	    		core.pop();
-// 	    		continue;
-// 	    	}
-// 	    	root_pointer += 1;
-// 	    } else {
-// 			core.pop();
-// 			if core.len() == 0 {
-// 				break;
-// 			}
-// 			root_pointer -= 1;
-// 	    }
-// 	}
-// 	found
-// }
 
 // #[cfg(test)]
 // mod tests {

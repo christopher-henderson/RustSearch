@@ -1,3 +1,6 @@
+use std::vec::Vec;
+use std::sync::{Arc, Mutex};
+
 extern crate nqueens;
 extern crate time;
 
@@ -44,18 +47,20 @@ fn n_from_input() -> i32 {
 
 fn main() {
 	let n = n_from_input();
-	let mut answers = vec![vec![]];
+	// let mut answers: Vec<Vec<Queen>> = vec![];
 	let fcg = Queen::new(0, 0, n);
 	let start = time::PreciseTime::now();
+	let found = Arc::new(Mutex::new(0));
+	let inner_found = found.clone();
 	////////////////////
 	nqueens::search(fcg, 
 		// Reject
-		&mut |solution: &[Queen], candidate: &Queen| {
+		|solution: &nqueens::CoreSlice<Queen>, candidate: &Queen| {
 			let column = candidate.column;
 			let row = candidate.row;
 			for queen in solution.iter() {
-				let r = queen.row;
-				let c = queen.column	;
+				let r = queen.read().unwrap().row;
+				let c = queen.read().unwrap().column	;
 				if (row == r) || (column == c) || (row + column == r + c) || (row - column == r - c) {
 					return true;
 				}
@@ -63,10 +68,12 @@ fn main() {
 			false
 		},
 		// Accept
-		&mut |solution: &[Queen]| {
-			if solution.len() > 0 && solution.len() == unsafe{solution.get_unchecked(0)}.n as usize {
+		move |solution: &nqueens::CoreSlice<Queen>| {
+			if solution.len() > 0 && solution.len() == unsafe{solution.get_unchecked(0)}.read().unwrap().n as usize {
+				*inner_found.lock().unwrap() += 1;
+				// found += 1;
 				// Aggregate answers in captured vector.
-				answers.push(solution.iter().map(|q| q.clone()).collect());
+				// answers.push(solution.iter().map(|q| q.read().unwrap().clone()).collect());
 				return true;
 			}
 			false
@@ -74,5 +81,5 @@ fn main() {
 	);
 	////////////////////
     let end = time::PreciseTime::now();
-    println!("found {} solutions in {} seconds", answers.len(), start.to(end));
+    println!("found {} solutions in {} seconds", found.lock().unwrap(), start.to(end));
 }
