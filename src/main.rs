@@ -59,8 +59,8 @@ fn main() {
 			let column = candidate.column;
 			let row = candidate.row;
 			for queen in solution.iter() {
-				let r = queen.read().unwrap().row;
-				let c = queen.read().unwrap().column	;
+				let r = queen.row;
+				let c = queen.column	;
 				if (row == r) || (column == c) || (row + column == r + c) || (row - column == r - c) {
 					return true;
 				}
@@ -69,7 +69,7 @@ fn main() {
 		},
 		// Accept
 		move |solution: &nqueens::CoreSlice<Queen>| {
-			if solution.len() > 0 && solution.len() == unsafe{solution.get_unchecked(0)}.read().unwrap().n as usize {
+			if solution.len() > 0 && solution.len() == unsafe{solution.get_unchecked(0)}.n as usize {
 				*inner_found.lock().unwrap() += 1;
 				// found += 1;
 				// Aggregate answers in captured vector.

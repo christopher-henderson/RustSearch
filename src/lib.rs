@@ -8,45 +8,86 @@ use std::thread;
 extern crate num_cpus;
 extern crate csp;
 
-pub type Item<T> = Arc<RwLock<T>>;
-pub type Core<T> = Vec<Item<T>>;
-pub type CoreSlice<T> = [Item<T>];
+pub type Core<T> = Vec<T>;
+pub type CoreSlice<T> = [T];
 
-pub fn search<T: 'static, R, A>(fcg: T, reject: R, accept: A)
+pub fn search<T: 'static, R, A>(mut fcg: T, reject: R, accept: A)
 where
 	T: Iterator<Item = T> + Send + Sync,
 	R: Fn(&CoreSlice<T>, &T) -> bool + Send + Sync + 'static,
 	A: Fn(&CoreSlice<T>) -> bool + Send + Sync + 'static
 {
-	let core: Core<T> = vec![Arc::new(RwLock::new(fcg))];
+	// let work_channel = csp::ArcBufferedChannel::new()
 	let workers = num_cpus::get();
 	let mut handles = vec![];
-	let work_channel = csp::BufferedChannel::new(workers);
-	let wg = csp::BufferedChannel::new(workers);
-	let lock = csp::BufferedChannel::new(workers);
 	let reject = Arc::new(reject);
 	let accept = Arc::new(accept);
-	for _ in 0..workers {
-		let work_channel = work_channel.clone();
-		let reject = reject.clone();
-		let accept = accept.clone();
-		let wg = wg.clone();
-		let lock = lock.clone();
-		handles.push(thread::spawn(move || {
-			engine(work_channel, wg, lock, reject, accept);
-		}));
-	}
-	lock.send(1);
-	wg.send(1);
-	work_channel.send(Some(core));
+	let supplicants = workers - 1;
 	let mut count = 0;
 	loop {
-		count += wg.recv();
-		if count == 0 {
-			for _ in 0..workers {
-				work_channel.send(None);
-			}
+		if count == supplicants {
+			handles.push(thread::spawn(move || {
+				let mut root_pointer: usize = 0;
+				let mut core = vec![fcg];
+				loop {
+				    if let Some(candidate) = unsafe{core.get_unchecked_mut(root_pointer)}.next() {
+				    	if reject(&core[1..], &candidate) {
+				    		continue;
+				    	}
+				    	core.push(candidate);
+				    	if accept(&core[1..]) {
+				    		core.pop();
+				    		continue;
+				    	}
+				    	root_pointer += 1;
+				    } else {
+						core.pop();
+						if root_pointer == 0 {
+							break;
+						}
+						root_pointer -= 1;
+				    }
+				}
+			}));
 			break;
+		}
+		let mut core = vec![];
+		if let Some(root) = fcg.next() {
+			if reject(&core[..], &root) {
+				continue;
+			}
+			core.push(root);
+			if accept(&core[..]) {
+				core.pop();
+				continue;
+			}
+			let root = core.pop().unwrap();
+			count += 1;
+			let reject = reject.clone();
+			let accept = accept.clone();
+			handles.push(thread::spawn(move || {
+				let mut root_pointer: usize = 0;
+				let mut core = vec![root];
+				loop {
+				    if let Some(candidate) = unsafe{core.get_unchecked_mut(root_pointer)}.next() {
+				    	if reject(&core[..], &candidate) {
+				    		continue;
+				    	}
+				    	core.push(candidate);
+				    	if accept(&core[..]) {
+				    		core.pop();
+				    		continue;
+				    	}
+				    	root_pointer += 1;
+				    } else {
+						core.pop();
+						if root_pointer == 0 {
+							break;
+						}
+						root_pointer -= 1;
+				    }
+				}
+			}));
 		}
 	}
 	for handle in handles {
@@ -54,53 +95,61 @@ where
 	}
 }
 
-fn engine<T, R, A>(work_channel: ArcBufferedChannel<Option<Core<T>>>, wg: ArcBufferedChannel<i32>, lock : ArcBufferedChannel<i32>, reject: Arc<R>, accept: Arc<A>) 
-where
-	T: Iterator<Item = T> + Send + Sync,
-	R: Fn(&CoreSlice<T>, &T) -> bool + Send + Sync + 'static,
-	A: Fn(&CoreSlice<T>) -> bool + Send + Sync + 'static
-{
-	loop {
-		let mut core;
-		if let Some(work) = work_channel.recv() {
-			core = work;
-		} else {
-			return;
-		}
-		let mut root_pointer: usize = core.len() - 1;
-		loop {
-			let cand = core[root_pointer].write().unwrap().next();
-			match cand {
-				Some(candidate) => {
-					if reject(&core[1..], &candidate) {
-			    		continue;
-			    	}
-			    	core.push(Arc::new(RwLock::new(candidate)));
-			    	if accept(&core[1..]) {
-			    		core.pop();
-			    		continue;
-			    	}
-			    	if let Ok(_) = lock.try_send(1) {
-			    		wg.send(1);
-			    		work_channel.send(Some(core.clone()));
-			    		core.pop();
-			    		continue;
-			    	}
-			    	root_pointer += 1;
-				},
-				None => {
-					core.pop();
-					if root_pointer == 0 {
-						break;
-					}
-					root_pointer -= 1;
-				}
-			}
-		}
-		lock.recv();
-		wg.send(-1);
-	}
-}
+// fn engine<T, R, A>(fcg: T, core:  reject: Arc<R>, accept: Arc<A>) 
+// where
+// 	T: Iterator<Item = T> + Send + Sync,
+// 	R: Fn(&CoreSlice<T>, &T) -> bool + Send + Sync + 'static,
+// 	A: Fn(&CoreSlice<T>) -> bool + Send + Sync + 'static
+// {
+
+// }
+// fn engine<T, R, A>(work_channel: ArcBufferedChannel<Option<Core<T>>>, wg: ArcBufferedChannel<i32>, lock : ArcBufferedChannel<i32>, reject: Arc<R>, accept: Arc<A>) 
+// where
+// 	T: Iterator<Item = T> + Send + Sync,
+// 	R: Fn(&CoreSlice<T>, &T) -> bool + Send + Sync + 'static,
+// 	A: Fn(&CoreSlice<T>) -> bool + Send + Sync + 'static
+// {
+// 	loop {
+// 		let mut core;
+// 		if let Some(work) = work_channel.recv() {
+// 			core = work;
+// 		} else {
+// 			return;
+// 		}
+// 		let mut root_pointer: usize = core.len() - 1;
+// 		loop {
+// 			let cand = core[root_pointer].write().unwrap().next();
+// 			match cand {
+// 				Some(candidate) => {
+// 					if reject(&core[1..], &candidate) {
+// 			    		continue;
+// 			    	}
+// 			    	core.push(Arc::new(RwLock::new(candidate)));
+// 			    	if accept(&core[1..]) {
+// 			    		core.pop();
+// 			    		continue;
+// 			    	}
+// 			    	if let Ok(_) = lock.try_send(1) {
+// 			    		wg.send(1);
+// 			    		work_channel.send(Some(core.clone()));
+// 			    		core.pop();
+// 			    		continue;
+// 			    	}
+// 			    	root_pointer += 1;
+// 				},
+// 				None => {
+// 					core.pop();
+// 					if root_pointer == 0 {
+// 						break;
+// 					}
+// 					root_pointer -= 1;
+// 				}
+// 			}
+// 		}
+// 		lock.recv();
+// 		wg.send(-1);
+// 	}
+// }
 
 // #[cfg(test)]
 // mod tests {
