@@ -13,61 +13,74 @@ pub type CoreSlice<T> = [T];
 
 pub fn search<T: 'static, R, A>(mut fcg: T, reject: R, accept: A)
 where
-	T: Iterator<Item = T> + Send + Sync,
+	T: Iterator<Item = T> + Send + Sync + Clone,
 	R: Fn(&CoreSlice<T>, &T) -> bool + Send + Sync + 'static,
 	A: Fn(&CoreSlice<T>) -> bool + Send + Sync + 'static
 {
-	// let work_channel = csp::ArcBufferedChannel::new()
 	let workers = num_cpus::get();
 	let mut handles = vec![];
 	let reject = Arc::new(reject);
 	let accept = Arc::new(accept);
 	let supplicants = workers - 1;
+	let work_channel: ArcBufferedChannel<Option<Core<T>>> = csp::BufferedChannel::new(supplicants);
+	let wg: ArcBufferedChannel<i32> = csp::BufferedChannel::new(supplicants);
 	let mut count = 0;
-	loop {
-		if count == supplicants {
-			handles.push(thread::spawn(move || {
-				let mut root_pointer: usize = 0;
-				let mut core = vec![fcg];
-				loop {
-				    if let Some(candidate) = unsafe{core.get_unchecked_mut(root_pointer)}.next() {
-				    	if reject(&core[1..], &candidate) {
-				    		continue;
-				    	}
-				    	core.push(candidate);
-				    	if accept(&core[1..]) {
-				    		core.pop();
-				    		continue;
-				    	}
-				    	root_pointer += 1;
-				    } else {
-						core.pop();
-						if root_pointer == 0 {
-							break;
-						}
-						root_pointer -= 1;
-				    }
-				}
-			}));
-			break;
-		}
-		let mut core = vec![];
-		if let Some(root) = fcg.next() {
-			if reject(&core[..], &root) {
-				continue;
-			}
-			core.push(root);
-			if accept(&core[..]) {
+
+
+	let master_wg = wg.clone();
+	let master_work_channel = work_channel.clone();
+	let master_reject = reject.clone();
+	let master_accept = accept.clone();
+	handles.push(thread::spawn(move || {
+		let mut root_pointer: usize = 0;
+		let mut core = vec![fcg];
+		loop {
+		    if let Some(candidate) = unsafe{core.get_unchecked_mut(root_pointer)}.next() {
+		    	if master_reject(&core[1..], &candidate) {
+		    		continue;
+		    	}
+		    	core.push(candidate);
+		    	if master_accept(&core[1..]) {
+		    		core.pop();
+		    		continue;
+		    	}
+		    	match master_wg.try_send(1) {
+		    		Ok(_) => {
+		    			let work = core[1..].to_vec().clone();
+		    			master_work_channel.send(Some(work));
+		    			core.pop();
+		    			continue;;
+		    		},
+		    		Err(_) => ()
+		    	}
+		    	root_pointer += 1;
+		    } else {
 				core.pop();
-				continue;
-			}
-			let root = core.pop().unwrap();
-			count += 1;
-			let reject = reject.clone();
-			let accept = accept.clone();
-			handles.push(thread::spawn(move || {
-				let mut root_pointer: usize = 0;
-				let mut core = vec![root];
+				if root_pointer == 0 {
+					break;
+				}
+				root_pointer -= 1;
+		    }
+		}
+		for _ in 0..supplicants {
+			master_work_channel.send(None);
+		}
+	}));
+
+	for _ in 1..workers {
+		let reject = reject.clone();
+		let accept = accept.clone();
+		let wg = wg.clone();
+		let work_channel = work_channel.clone();
+		handles.push(thread::spawn(move || {
+			loop {
+				let mut core;
+				if let Some(work) = work_channel.recv() {
+					core = work;
+				} else {
+					return;
+				}
+				let mut root_pointer: usize = core.len() - 1;
 				loop {
 				    if let Some(candidate) = unsafe{core.get_unchecked_mut(root_pointer)}.next() {
 				    	if reject(&core[..], &candidate) {
@@ -80,19 +93,20 @@ where
 				    	}
 				    	root_pointer += 1;
 				    } else {
+				    	if core.len() == 0 {
+				    		break;
+				    	}
 						core.pop();
-						if root_pointer == 0 {
-							break;
-						}
 						root_pointer -= 1;
 				    }
 				}
-			}));
-		}
+				wg.recv();
+			}
+		}));
 	}
 	for handle in handles {
 		handle.join().unwrap();
-	}
+	}	
 }
 
 // fn engine<T, R, A>(fcg: T, core:  reject: Arc<R>, accept: Arc<A>) 
