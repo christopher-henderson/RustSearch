@@ -1,143 +1,307 @@
 pub fn search<T>(fcg: T, reject: &mut FnMut(&[T], &T) -> bool, accept: &mut FnMut(&[T]) -> bool)
 where
-	T: Iterator<Item = T>
+    T: Iterator<Item = T>,
 {
-	let mut root_pointer: usize = 0;
-	let mut core = vec![fcg];
-	loop {
-	    if let Some(candidate) = unsafe{core.get_unchecked_mut(root_pointer)}.next() {
-	    	if reject(&core[1..], &candidate) {
-	    		continue;
-	    	}
-	    	core.push(candidate);
-	    	if accept(&core[1..]) {
-	    		core.pop();
-	    		continue;
-	    	}
-	    	root_pointer += 1;
-	    } else {
-			core.pop();
-			if root_pointer == 0 {
-				break;
-			}
-			root_pointer -= 1;
-	    }
-	}
+    let mut root_pointer: usize = 0;
+    let mut core = vec![fcg];
+    loop {
+        if let Some(candidate) = unsafe { core.get_unchecked_mut(root_pointer) }.next() {
+            if reject(&core[1..], &candidate) {
+                continue;
+            }
+            core.push(candidate);
+            if accept(&core[1..]) {
+                core.pop();
+                continue;
+            }
+            root_pointer += 1;
+        } else {
+            core.pop();
+            if root_pointer == 0 {
+                break;
+            }
+            root_pointer -= 1;
+        }
+    }
 }
 
+#[cfg(test)]
+mod tests {
+    use super::*;
 
+    // Make an assertion on the exat contents of the solution, since
+    // NQueens of 4 is only two solutions long.
+    #[test]
+    fn exact_nqueens_test() {
+        let nqueens_4: [[Queen; 4]; 2] = [
+            [
+                Queen::new(1, 2, 4),
+                Queen::new(2, 4, 4),
+                Queen::new(3, 1, 4),
+                Queen::new(4, 3, 4),
+            ],
+            [
+                Queen::new(1, 3, 4),
+                Queen::new(2, 1, 4),
+                Queen::new(3, 4, 4),
+                Queen::new(4, 2, 4),
+            ],
+        ];
+        let n = 4;
+        let mut answers: Vec<Vec<Queen>> = vec![];
+        let fcg = Queen::new(0, 0, n);
+        ////////////////////
+        search(
+            fcg,
+            // Reject
+            &mut |solution: &[Queen], candidate: &Queen| {
+                let column = candidate.column;
+                let row = candidate.row;
+                for queen in solution.iter() {
+                    let r = queen.row;
+                    let c = queen.column;
+                    if (row == r)
+                        || (column == c)
+                        || (row + column == r + c)
+                        || (row - column == r - c)
+                    {
+                        return true;
+                    }
+                }
+                false
+            },
+            // Accept
+            &mut |solution: &[Queen]| {
+                if solution.len() > 0
+                    && solution.len() == unsafe { solution.get_unchecked(0) }.n as usize
+                {
+                    // Aggregate answers in captured vector.
+                    answers.push(solution.iter().map(|q| q.clone()).collect());
+                    return true;
+                }
+                false
+            },
+        );
+        assert_eq!(answers, nqueens_4);
+    }
 
-// impl PartialEq for Queen {
-// 	fn eq(&self, other: &Queen) -> bool {
-// 		return self.column == other.column && self.row == other.row;
-// 	}
-// }
+    // Merely assert that there are the correct number of solutions.
+    // @TODO knuckle down and format the data set for 92 chess boards for n = 8.
+    #[test]
+    fn nqueens_larger_test() {
+        let n = 8;
+        let mut answers: Vec<Vec<Queen>> = vec![];
+        let fcg = Queen::new(0, 0, n);
+        ////////////////////
+        search(
+            fcg,
+            // Reject
+            &mut |solution: &[Queen], candidate: &Queen| {
+                let column = candidate.column;
+                let row = candidate.row;
+                for queen in solution.iter() {
+                    let r = queen.row;
+                    let c = queen.column;
+                    if (row == r)
+                        || (column == c)
+                        || (row + column == r + c)
+                        || (row - column == r - c)
+                    {
+                        return true;
+                    }
+                }
+                false
+            },
+            // Accept
+            &mut |solution: &[Queen]| {
+                if solution.len() > 0
+                    && solution.len() == unsafe { solution.get_unchecked(0) }.n as usize
+                {
+                    // Aggregate answers in captured vector.
+                    answers.push(solution.iter().map(|q| q.clone()).collect());
+                    return true;
+                }
+                false
+            },
+        );
+        assert_eq!(answers.len(), 92);
+    }
 
-// impl Clone for Queen {
-// 	fn clone(&self) -> Queen {
-// 		Queen{column: self.column, row: self.row, n: self.n, current: self.current}
-// 	}
-// }
+    #[derive(Debug, Clone)]
+    pub struct Queen {
+        pub column: i32,
+        pub row: i32,
+        pub n: i32,
+        current: i32,
+    }
 
-// fn reject(solution: &[Queen], candidate: &Queen) -> bool {
-	// let column = candidate.column;
-	// let row = candidate.row;
-	// for queen in solution.iter() {
-	// 	let r = queen.row;
-	// 	let c = queen.column	;
-	// 	if (row == r) || (column == c) || (row + column == r + c) || (row - column == r - c) {
-	// 		return true;
-	// 	}
-	// }
-	// false
-// }
+    impl Queen {
+        pub fn new(column: i32, row: i32, n: i32) -> Queen {
+            Queen {
+                column,
+                row,
+                n,
+                current: 0,
+            }
+        }
+    }
 
-// fn accept(solution: &[Queen]) -> bool {
-// 	solution.len() > 0 && solution.len() == unsafe{solution.get_unchecked(0)}.n as usize
-// }
+    // Equality for a queen need not take into account n and current.
+    impl PartialEq for Queen {
+        fn eq(&self, other: &Queen) -> bool {
+            self.column == other.column && self.row == other.row
+        }
+    }
 
-// pub fn backtrack(fcg: Queen) -> u32 {
-// 	let mut found = 0;
-// 	let mut root_pointer: usize = 0;
-// 	let mut core: vec::Vec<Queen> = vec![fcg];
-// 	loop {
-// 	    if let Some(candidate) = unsafe{core.get_unchecked_mut(root_pointer)}.next() {
-// 	    	if reject(&core[1..], &candidate) {
-// 	    		continue;
-// 	    	}
-// 	    	core.push(candidate);
-// 	    	if accept(&core[1..]) {
-// 	    		found += 1;
-// 	    		core.pop();
-// 	    		continue;
-// 	    	}
-// 	    	root_pointer += 1;
-// 	    } else {
-// 			core.pop();
-// 			if core.len() == 0 {
-// 				break;
-// 			}
-// 			root_pointer -= 1;
-// 	    }
-// 	}
-// 	found
-// }
+    impl Iterator for Queen {
+        type Item = Queen;
 
-// #[cfg(test)]
-// mod tests {
-// 	use super::*;
+        fn next(&mut self) -> Option<Queen> {
+            self.current += 1;
+            if self.current > self.n {
+                return None;
+            }
+            Some(Queen::new(self.column + 1, self.current, self.n))
+        }
+    }
 
-// 	#[test]
-// 	fn must_reject() {
-// 		let n = 4;
-// 		assert!(reject(&vec![Queen::new(1, 1, n)][..], &Queen::new(2, 2, n)));
-// 		assert!(reject(&vec![Queen::new(1, 1, n), Queen::new(2, 4, n)][..], &Queen::new(3, 4, n)));
-// 		assert!(reject(&vec![Queen::new(1, 1, n), Queen::new(2, 4, n), Queen::new(3, 4, n)][..], &Queen::new(4, 3, n)));
-// 	}
+    fn reject_queen(solution: &[Queen], candidate: &Queen) -> bool {
+        let column = candidate.column;
+        let row = candidate.row;
+        for queen in solution.iter() {
+            let r = queen.row;
+            let c = queen.column;
+            if (row == r) || (column == c) || (row + column == r + c) || (row - column == r - c) {
+                return true;
+            }
+        }
+        false
+    }
 
-// // 1-
-// //  0  0  1  0 
-// //  1  0  0  0 
-// //  0  0  0  1 
-// //  0  1  0  0 
-// // 2-
-// //  0  1  0  0 
-// //  0  0  0  1 
-// //  1  0  0  0 
-// //  0  0  1  0 
-// 	#[test]
-// 	fn must_not_reject() {
-// 		let n = 4;
-// 		assert!(!reject(&vec![Queen::new(1, 2, n)][..], &Queen::new(2, 4, n)));
-// 		assert!(!reject(&vec![Queen::new(1, 2, n), Queen::new(2, 4, n)][..], &Queen::new(3, 1, n)));
-// 		assert!(!reject(&vec![Queen::new(1, 2, n), Queen::new(2, 4, n), Queen::new(3, 1, n)][..], &Queen::new(4, 3, n)));
+    fn accept_queen(solution: &[Queen]) -> bool {
+        if solution.len() > 0 && solution.len() == unsafe { solution.get_unchecked(0) }.n as usize {
+            // Aggregate answers in captured vector.
+            // answers.push(solution.iter().map(|q| q.clone()).collect());
+            return true;
+        }
+        false
+    }
 
-// 		assert!(!reject(&vec![Queen::new(1, 3, n)][..], &Queen::new(2, 1, n)));
-// 		assert!(!reject(&vec![Queen::new(1, 3, n), Queen::new(2, 1, n)][..], &Queen::new(3, 4, n)));
-// 		assert!(!reject(&vec![Queen::new(1, 3, n), Queen::new(2, 1, n), Queen::new(3, 4, n)][..], &Queen::new(4, 2, n)));
-// 	}
+    // Meta test to ensure that our NQueens test fixure is correct
+    #[test]
+    fn must_reject() {
+        let n = 4;
+        assert!(reject_queen(
+            &vec![Queen::new(1, 1, n)][..],
+            &Queen::new(2, 2, n)
+        ));
+        assert!(reject_queen(
+            &vec![Queen::new(1, 1, n), Queen::new(2, 4, n)][..],
+            &Queen::new(3, 4, n)
+        ));
+        assert!(reject_queen(
+            &vec![
+                Queen::new(1, 1, n),
+                Queen::new(2, 4, n),
+                Queen::new(3, 4, n),
+            ][..],
+            &Queen::new(4, 3, n)
+        ));
+    }
 
-// 	#[test]
-// 	fn must_accept() {
-// 		let n = 4;
-// 	    assert!(accept(&vec![Queen::new(1, 3, n), Queen::new(2, 1, n), Queen::new(3, 4, n), Queen::new(4, 2, n)][..]));
-// 	}
+    // Meta test to ensure that our NQueens test fixure is correct
+    // Data is the following chess boards.
+    //
+    // 1-
+    //  0  0  1  0
+    //  1  0  0  0
+    //  0  0  0  1
+    //  0  1  0  0
+    // 2-
+    //  0  1  0  0
+    //  0  0  0  1
+    //  1  0  0  0
+    //  0  0  1  0
+    #[test]
+    fn must_not_reject() {
+        let n = 4;
+        assert!(!reject_queen(
+            &vec![Queen::new(1, 2, n)][..],
+            &Queen::new(2, 4, n)
+        ));
+        assert!(!reject_queen(
+            &vec![Queen::new(1, 2, n), Queen::new(2, 4, n)][..],
+            &Queen::new(3, 1, n)
+        ));
+        assert!(!reject_queen(
+            &vec![
+                Queen::new(1, 2, n),
+                Queen::new(2, 4, n),
+                Queen::new(3, 1, n),
+            ][..],
+            &Queen::new(4, 3, n)
+        ));
 
-// 	#[test]
-// 	fn must_not_accept() {
-// 		let n = 4;
-// 		assert!(!accept(&vec![Queen::new(1, 3, n), Queen::new(2, 1, n), Queen::new(3, 4, n)][..]));
-// 	}
+        assert!(!reject_queen(
+            &vec![Queen::new(1, 3, n)][..],
+            &Queen::new(2, 1, n)
+        ));
+        assert!(!reject_queen(
+            &vec![Queen::new(1, 3, n), Queen::new(2, 1, n)][..],
+            &Queen::new(3, 4, n)
+        ));
+        assert!(!reject_queen(
+            &vec![
+                Queen::new(1, 3, n),
+                Queen::new(2, 1, n),
+                Queen::new(3, 4, n),
+            ][..],
+            &Queen::new(4, 2, n)
+        ));
+    }
 
-// 	#[test]
-// 	fn correct_children() {
-// 		let n = 4;
-// 	    let mut fcg = Queen::new(0, 0, n);
-// 	    let expected = vec![Queen::new(1, 1, n), Queen::new(1, 2, n), Queen::new(1, 3, n), Queen::new(1, 4, n)];
-// 	    let mut got: vec::Vec<Queen> = vec::Vec::new();
-// 	    while let Some(queen) = fcg.next() {
-// 	    	got.push(queen);
-// 	    }
-// 	    assert_eq!(expected, got);
-// 	}
-// }
+    // Meta test to ensure that our NQueens test fixure is correct
+    #[test]
+    fn must_accept() {
+        let n = 4;
+        assert!(accept_queen(
+            &vec![
+                Queen::new(1, 3, n),
+                Queen::new(2, 1, n),
+                Queen::new(3, 4, n),
+                Queen::new(4, 2, n),
+            ][..]
+        ));
+    }
+
+    // Meta test to ensure that our NQueens test fixure is correct
+    #[test]
+    fn must_not_accept() {
+        let n = 4;
+        assert!(!accept_queen(
+            &vec![
+                Queen::new(1, 3, n),
+                Queen::new(2, 1, n),
+                Queen::new(3, 4, n),
+            ][..]
+        ));
+    }
+
+    // Meta test to ensure that our NQueens test fixure is correct
+    #[test]
+    fn correct_children() {
+        let n = 4;
+        let mut fcg = Queen::new(0, 0, n);
+        let expected = vec![
+            Queen::new(1, 1, n),
+            Queen::new(1, 2, n),
+            Queen::new(1, 3, n),
+            Queen::new(1, 4, n),
+        ];
+        let mut got: Vec<Queen> = Vec::new();
+        while let Some(queen) = fcg.next() {
+            got.push(queen);
+        }
+        assert_eq!(expected, got);
+    }
+}
