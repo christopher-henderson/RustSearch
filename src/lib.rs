@@ -1,28 +1,59 @@
-pub fn search<T>(fcg: T, reject: &mut FnMut(&[T], &T) -> bool, accept: &mut FnMut(&[T]) -> bool)
-where
-    T: Iterator<Item = T>,
+extern crate rayon;
+use rayon::prelude::*;
+use std::fmt::Debug;
+pub fn search<T>(
+    fcg: T,
+    reject: &mut (Fn(&[T], &T) -> bool + Send + Sync),
+    accept: &mut (Fn(&[T]) -> bool + Send + Sync),
+) where
+    T: Iterator<Item = T> + Send + Sync + Copy + Debug,
 {
-    let mut root_pointer: usize = 0;
-    let mut core = vec![fcg];
-    loop {
-        if let Some(candidate) = unsafe { core.get_unchecked_mut(root_pointer) }.next() {
-            if reject(&core[1..], &candidate) {
-                continue;
-            }
-            core.push(candidate);
-            if accept(&core[1..]) {
+    let roots: Vec<T> = fcg.map(|root| root).collect();
+    let roots = roots.as_slice();
+    roots.into_par_iter().for_each(|root| {
+        let mut root_pointer: usize = 0;
+        let mut core: Vec<T> = vec![root.clone()];
+        loop {
+            if let Some(candidate) = unsafe { core.get_unchecked_mut(root_pointer) }.next() {
+                if reject(&core, &candidate) {
+                    continue;
+                }
+                core.push(candidate);
+                if accept(&core) {
+                    core.pop();
+
+                    continue;
+                }
+                root_pointer += 1;
+            } else {
                 core.pop();
-                continue;
+                if root_pointer == 0 {
+                    break;
+                }
+                root_pointer -= 1;
             }
-            root_pointer += 1;
-        } else {
-            core.pop();
-            if root_pointer == 0 {
-                break;
-            }
-            root_pointer -= 1;
         }
-    }
+    });
+
+    // loop {
+    //     if let Some(candidate) = unsafe { core.get_unchecked_mut(root_pointer) }.next() {
+    //         if reject(&core[1..], &candidate) {
+    //             continue;
+    //         }
+    //         core.push(candidate);
+    //         if accept(&core[1..]) {
+    //             core.pop();
+    //             continue;
+    //         }
+    //         root_pointer += 1;
+    //     } else {
+    //         core.pop();
+    //         if root_pointer == 0 {
+    //             break;
+    //         }
+    //         root_pointer -= 1;
+    //     }
+    // }
 }
 
 #[cfg(test)]
@@ -76,7 +107,7 @@ mod tests {
                     && solution.len() == unsafe { solution.get_unchecked(0) }.n as usize
                 {
                     // Aggregate answers in captured vector.
-                    answers.push(solution.iter().map(|q| q.clone()).collect());
+                    // answers.push(solution.iter().map(|q| q.clone()).collect());
                     return true;
                 }
                 false
@@ -118,7 +149,7 @@ mod tests {
                     && solution.len() == unsafe { solution.get_unchecked(0) }.n as usize
                 {
                     // Aggregate answers in captured vector.
-                    answers.push(solution.iter().map(|q| q.clone()).collect());
+                    // answers.push(solution.iter().map(|q| q.clone()).collect());
                     return true;
                 }
                 false
@@ -127,7 +158,7 @@ mod tests {
         assert_eq!(answers.len(), 92);
     }
 
-    #[derive(Debug, Clone)]
+    #[derive(Debug, Clone, Copy)]
     pub struct Queen {
         pub column: i32,
         pub row: i32,
