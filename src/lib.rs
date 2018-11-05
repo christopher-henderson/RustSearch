@@ -25,6 +25,44 @@ where
     }
 }
 
+extern crate rayon;
+use rayon::prelude::*;
+use std::fmt::Debug;
+pub fn par_search<T>(
+    fcg: T,
+    reject: &mut (Fn(&[T], &T) -> bool + Send + Sync),
+    accept: &mut (Fn(&[T]) -> bool + Send + Sync),
+) where
+    T: Iterator<Item = T> + Send + Sync + Copy + Debug,
+{
+    let roots: Vec<T> = fcg.map(|root| root).collect();
+    let roots = roots.as_slice();
+    roots.into_par_iter().for_each(|root| {
+        let mut root_pointer: usize = 0;
+        let mut core: Vec<T> = vec![root.clone()];
+        loop {
+            if let Some(candidate) = unsafe { core.get_unchecked_mut(root_pointer) }.next() {
+                if reject(&core, &candidate) {
+                    continue;
+                }
+                core.push(candidate);
+                if accept(&core) {
+                    core.pop();
+
+                    continue;
+                }
+                root_pointer += 1;
+            } else {
+                core.pop();
+                if root_pointer == 0 {
+                    break;
+                }
+                root_pointer -= 1;
+            }
+        }
+    })
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
